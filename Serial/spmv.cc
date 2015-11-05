@@ -4,7 +4,7 @@
 #include <vector>
 #include <bits/stdc++.h>
 
-#include <fstream>
+#include "spmv.h"
 
 #define ENABLE_PRINT 0
 
@@ -12,43 +12,6 @@
 
 using namespace Eigen;
 using namespace std;
-
-typedef double matrixValType;
-
-typedef SparseMatrix<matrixValType> MyMatrix;
-
-void PrintMatrix(MyMatrix& mat){
-	std::cout<<"\n Number of Rows = "<<mat.outerSize()<<"\n";
-	for (int k=0; k<mat.outerSize(); ++k){
-		std::cout<<"Column "<<k<<" : ";
-		for (MyMatrix::InnerIterator it(mat,k); it; ++it)
-		{
-			std::cout<<it.value()<<" row#: "<<it.row()<< " col#: "<<it.col()<<" index#: "<<it.index()<<"\n";
-		}
-		std::cout<<"\n";
-	}
-}
-
-matrixValType getSumOfVectorElems(VectorXd& x){
-	matrixValType sum = 0.0;
-	for(int i=0;i<x.rows();i++){
-		sum+=x(i);
-	}
-	return sum;
-}
-
-bool IsThresholdCrossed(VectorXd& x_old, VectorXd& x_new, double threshold){
-	for(int i=0;i<x_old.rows();i++){
-		//cout<<"abs " << abs(x_old(i)-x_new(i))<<" ";
-		if(abs(x_old(i)-x_new(i)) > threshold){
-
-			return false;
-		}
-	}
-	//cout<<"\nTHRESHOLD CROSSED! "<<threshold<<"\n";
-	return true;
-
-}
 
 
 VectorXd PageRank(MyMatrix& A_mat, VectorXd& x_const, VectorXd& x_0, double alpha, double threshold, int num_iters){
@@ -73,8 +36,8 @@ VectorXd PageRank(MyMatrix& A_mat, VectorXd& x_const, VectorXd& x_0, double alph
 VectorXd IncrementalPageRank(MyMatrix& A_plus_delta_A, MyMatrix& delta_A_mat, VectorXd& x_0, double alpha, double threshold, int num_iters){
 
 	VectorXd result(x_0.rows());
-
 	VectorXd lambda_(x_0.rows());
+
 	//SpMSpV op
 	lambda_ = (1-alpha)*(delta_A_mat*x_0);
 
@@ -88,11 +51,9 @@ VectorXd IncrementalPageRank(MyMatrix& A_plus_delta_A, MyMatrix& delta_A_mat, Ve
 
 	for(i=0;i<num_iters;i++){
 		//SpMSpV op
-		x_sparse = (1-alpha)*(A_plus_delta_A*(lambda_ + x_sparse));
-		
+		x_sparse = (1-alpha)*(A_plus_delta_A*(lambda_ + x_sparse));		
 		if(IsThresholdCrossed(x_sparse_old, x_sparse, threshold))
 			break;
-
 		x_sparse_old = x_sparse;
 
 	}
@@ -101,77 +62,6 @@ VectorXd IncrementalPageRank(MyMatrix& A_plus_delta_A, MyMatrix& delta_A_mat, Ve
 	result = x_0 + lambda_ + x_sparse;
 	return result;
 
-}
-
-struct Node{
-	int id;
-	//boolean to indicate whether it is a dangling node
-	bool isDangling;
-	vector<int> neighbours;
-
-	Node(): isDangling(false){}
-};
-
-vector<Node> CreateAdjacencyListFromEdgeList(string filename){
-	ifstream fin(filename);
-
-	int num_nodes, num_edges;
-	fin>>num_nodes>>num_edges;
-
-	vector<Node> adj_list(num_nodes);
-
-	for(int i =0;i<num_edges;i++){
-		int a,b;
-		fin>>a>>b;
-		adj_list[a].neighbours.push_back(b);
-	}
-
-	return adj_list;
-}
-
-
-MyMatrix CreateMatrixFromFile(int& NUMROWS, int& NUMCOLS, string filename){
-
-	vector<Node> adj_list = CreateAdjacencyListFromEdgeList(filename);
-	
-	NUMROWS = adj_list.size();
-	NUMCOLS = NUMROWS;
-	
-	std::vector<int> rows;
-	std::vector<int> cols;
-
-	for(int i=0;i<NUMROWS;i++){
-		//cout<<i<<": ";
-		//if no outer link, assume it links to all - this is done in original PR as well!
-		if(adj_list[i].neighbours.size() == 0){
-			adj_list[i].isDangling = true;
-			for(int j=0;j<NUMROWS;j++){
-				adj_list[i].neighbours.push_back(j);
-			}
-		}
-		for(int j=0;j<adj_list[i].neighbours.size();j++){
-			rows.push_back(i);cols.push_back(adj_list[i].neighbours[j]);
-			//cout<<adj_list[i].neighbours[j]<<" ";
-		}
-
-		//cout<<endl;
-	}
-
-	int nnz = rows.size();
-
-	int estimation_of_entries = nnz;
-	typedef Eigen::Triplet<matrixValType> T;
-	std::vector<T> tripletList;
-	tripletList.reserve(estimation_of_entries);
-	for(int i=0;i<nnz;i++)
-	{
-		tripletList.push_back(T(rows[i],cols[i],1.0/double(adj_list[rows[i]].neighbours.size())));
-	}
-
-	MyMatrix mat(NUMROWS, NUMCOLS);
-	mat.setFromTriplets(tripletList.begin(), tripletList.end());
-	
-	return mat;
 }
 
 
@@ -201,17 +91,15 @@ int main()
 		x_init(i) = 1.0/double(NUMROWS);
 	}
 
-	x = x_init;
-
 	std::cout << "Initial PageRank vector:\n" << x_init << std::endl;
-	
+
+	x = x_init;	
 	VectorXd result = PageRank(mat_transpose, x_init,x, ALPHA, THRESHOLD, NUM_ITERS);
 
 	std::cout << "Here is the PageRank vector after initial PageRank:\n" << result << std::endl;
 
 	string filename_delta = "delta_edgelist.in";
 	MyMatrix mat_new = CreateMatrixFromFile(NUMROWS, NUMCOLS, filename_delta);
-	
 	MyMatrix mat_new_transpose = MyMatrix(mat_new.transpose());
 
 #if ENABLE_PRINT
