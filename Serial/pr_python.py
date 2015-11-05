@@ -1,8 +1,9 @@
 import networkx as nx
 
 G = nx.DiGraph()
-
-f = open("edgelist.in")
+#filename = "edgelist.in"
+filename = "delta_edgelist.in"
+f = open(filename)
 
 first_line = f.readline();
 num_vertices, num_edges = [int(x) for x in first_line.split()]

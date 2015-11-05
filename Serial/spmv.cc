@@ -16,16 +16,12 @@ typedef double matrixValType;
 typedef SparseMatrix<matrixValType> MyMatrix;
 
 void PrintMatrix(MyMatrix& mat){
-	//SparseMatrix<double> mat(rows,cols);
 	std::cout<<"\nmat.outersize() = "<<mat.outerSize()<<"\n";
 	for (int k=0; k<mat.outerSize(); ++k){
 		std::cout<<"row "<<k<<" : ";
 		for (MyMatrix::InnerIterator it(mat,k); it; ++it)
 		{
 			std::cout<<it.value()<<" "<<it.row()<< " "<<it.col()<<" "<<it.index()<<"\n";
-		    //it.row();   // row index
-		   	//it.col();   // col index (here it is equal to k)
-		    //it.index(); // inner index, here it is equal to it.row()
 		}
 		std::cout<<"\n";
 	}
@@ -67,15 +63,12 @@ VectorXd PageRank(MyMatrix& A_mat, VectorXd& x_const, VectorXd& x_0, double alph
 	for( i=0;i<num_iters && !IsThresholdCrossed(x_old,x, threshold);i++ ){
 		//do mat-vec
 		x_old = x;
-		//x = (alpha*x_const) + (1-alpha)*(A_mat*x);
-		x = (alpha*x_const) + (1-alpha)*(A_mat*x);
-//		cout<<"intermed x = "<<x<<endl;
-//		cout<<"sum = "<<getSumOfVectorElems(x)<<endl;
-		//matrixValType sum_new = getSumOfVectorElems(x);
-		
-		//diff = abs(sum_new-sum_old);
-		//sum_old = sum_new;
 
+		//x = (1-alpha)*(A_mat*x);
+		//cout<<"x ===== "<<x<<endl;
+
+		x = (alpha*x_const) + (1-alpha)*(A_mat*x);
+		//cout<<"PR_X_inter after iteration "<<i<<":\n"<<x<<endl;
 	}
 	cout<<"\ntotal num iters "<<i<<endl; 
 
@@ -83,14 +76,53 @@ VectorXd PageRank(MyMatrix& A_mat, VectorXd& x_const, VectorXd& x_0, double alph
 
 }
 
-void IncrementalPageRank(MyMatrix& A_new_mat, MyMatrix& delta_A_mat, VectorXd& x_const, VectorXd& x_0, double alpha, double threshold, int num_iters){
+VectorXd IncrementalPageRank(MyMatrix& A_plus_delta_A, MyMatrix& delta_A_mat, VectorXd& x_0, double alpha, double threshold, int num_iters){
 
-	//VectorXd 
+	VectorXd lambda_(x_0.rows());
+	lambda_ = (1-alpha)*(delta_A_mat*x_0);
+	cout<<"lambda_ :\n"<<lambda_<<endl;
+	VectorXd x(x_0.rows());
+	x=x_0;
+
+	VectorXd x_sparse(x_0.rows());
+	//x_sparse = (1-alpha)*(A_plus_delta_A*lambda_);
+	for(int i=0;i<x_sparse.rows();i++){
+		x_sparse(i) = 0;
+	}
+	//cout<<"x sparse init ===== "<<x_sparse<<endl;
+	VectorXd x_sparse_old(x_0.rows());
+	int i;
+
+
+	x = x_0 + lambda_;
+
+	//cout<<"x_sp 1 ===== "<<x<<endl;
+
+	for(i=0;i<num_iters;i++){
+		x_sparse = (1-alpha)*(A_plus_delta_A*(lambda_ + x_sparse));
+		
+		if(IsThresholdCrossed(x_sparse_old, x_sparse, threshold))
+			break;
+		x_sparse_old = x_sparse;
+
+		//debug
+		x = x_0 + lambda_ + x_sparse;
+		//cout<<"PR_X_inter_incre after iteration "<<i<<":\n"<<x<<endl;
+	}
+	cout<<"\ntotal num iters "<<i<<endl; 
+	x = x_0 + lambda_ + x_sparse;
+
+	return x;
+
 }
 
 struct Node{
 	int id;
+	//boolean to indicate whether it is a dangling node
+	bool isDangling;
 	vector<int> neighbours;
+
+	Node(): isDangling(false){}
 };
 
 vector<Node> CreateAdjacencyListFromEdgeList(string filename){
@@ -112,30 +144,22 @@ vector<Node> CreateAdjacencyListFromEdgeList(string filename){
 	return adj_list;
 }
 
-int main()
-{
-	MatrixXd m(2,2);
-	m(0,0) = 3;
-	m(1,0) = 2.5;
-	m(0,1) = -1;
-	m(1,1) = m(1,0) + m(0,1);
-	std::cout << m << std::endl;
 
-	//std::vector<double> vals = {22, 7, 3, 5, 14, 1, 17, 8};
+MyMatrix CreateMatrixFromFile(int& NUMROWS, int& NUMCOLS, string filename){
 
-	string filename = "edgelist.in";
 	vector<Node> adj_list = CreateAdjacencyListFromEdgeList(filename);
-	const int NUMROWS = adj_list.size();
-	const int NUMCOLS = NUMROWS;
-	const int NUM_ITERS = 300;
-
-	std::vector<int> rows;// = {1, 2, 0, 2, 4, 2, 1, 4};
-	std::vector<int> cols;// = {0, 0, 1, 1, 2, 3, 4, 4};
+	
+	NUMROWS = adj_list.size();
+	NUMCOLS = NUMROWS;
+	
+	std::vector<int> rows;
+	std::vector<int> cols;
 
 	for(int i=0;i<NUMROWS;i++){
 		cout<<i<<": ";
 		//if no outer link, assume it links to all - this is done in original PR as well!
 		if(adj_list[i].neighbours.size() == 0){
+			adj_list[i].isDangling = true;
 			for(int j=0;j<NUMROWS;j++){
 				adj_list[i].neighbours.push_back(j);
 			}
@@ -149,20 +173,8 @@ int main()
 		cout<<endl;
 	}
 
-	
-
-
-
-
 	int nnz = rows.size();
-/*	
-	SparseMatrix<double> mat(NUMROWS, NUMCOLS);
-	mat.reserve(VectorXi::Constant(NUMCOLS,6));
 
-	for(int i=0;i<vals.size();i++){
-		mat.insert(rows[i],cols[i]) = vals[i];
-	}
-*/
 	int estimation_of_entries = nnz;
 	typedef Eigen::Triplet<matrixValType> T;
 	std::vector<T> tripletList;
@@ -174,8 +186,24 @@ int main()
 
 	MyMatrix mat(NUMROWS, NUMCOLS);
 	mat.setFromTriplets(tripletList.begin(), tripletList.end());
+	
+	return mat;
+}
 
-	PrintMatrix(mat);
+
+
+int main()
+{
+
+	int NUM_ITERS = 300;
+	int NUMROWS, NUMCOLS;
+	const double THRESHOLD =0.0000000001;
+
+	string filename = "edgelist.in";
+	MyMatrix mat = CreateMatrixFromFile(NUMROWS, NUMCOLS, filename);
+	
+	MyMatrix mat_transpose = MyMatrix(mat.transpose());
+	PrintMatrix(mat_transpose);
 
 	//d because double - need to change this if changing type
 	VectorXd x(NUMROWS), x_init(NUMROWS);
@@ -186,19 +214,71 @@ int main()
 	}
 
 	x = x_init;
-	//std::cout << "Here is the vector x:\n" << x << std::endl;
 	std::cout << "num rows and cols\n" << x.rows() << " "<<x.cols()<<std::endl;
 	std::cout << "Here is the vector x_init:\n" << x_init << std::endl;
-
-
-	//SparseMatrix<matrixValType>& A_mat, VectorXd& x_const, VectorXd& x_0, double alpha, double threshold, int num_iters
-	double threshold =0.0000000001;
-	cout<<"thresh:" <<threshold<<endl;
-	MyMatrix mat_transpose = MyMatrix(mat.transpose());
-	VectorXd result = PageRank(mat_transpose, x_init,x, ALPHA, threshold, NUM_ITERS);
+	
+	VectorXd result = PageRank(mat_transpose, x_init,x, ALPHA, THRESHOLD, NUM_ITERS);
 
 	std::cout << "Here is the vector result:\n" << result << std::endl;
-	//x = mat*x;
+
+	string filename_delta = "delta_edgelist.in";
+	MyMatrix mat_new = CreateMatrixFromFile(NUMROWS, NUMCOLS, filename_delta);
+
 	
-	std::cout << "Here is the vector x:\n" << x << std::endl;
+	MyMatrix mat_new_transpose = MyMatrix(mat_new.transpose());
+	PrintMatrix(mat_new_transpose);
+
+
+	MyMatrix delta_mat = mat_new_transpose - mat_transpose;
+	PrintMatrix(delta_mat);
+
+	//NUM_ITERS = 2;
+	VectorXd result_incremental = IncrementalPageRank(mat_new_transpose, delta_mat, result, ALPHA, THRESHOLD, NUM_ITERS);
+
+	std::cout << "Here is the vector result according to incremental PR:\n" << result_incremental << std::endl;
+
+	VectorXd result_scratch = PageRank(mat_new_transpose, x_init, result, ALPHA, THRESHOLD, NUM_ITERS);
+
+	std::cout << "Here is the vector result according to PR from scratch:\n" << result_scratch << std::endl;
+
+/*
+
+	vector<Node> delta_adj_list = CreateAdjacencyListFromEdgeList(filename_delta);
+
+	std::vector<T> tripletList_delta_A;
+	//tripletList.reserve();
+	for(int i=0;i<nnz;i++)
+	{
+		tripletList_delta_A.push_back(T(rows[i],cols[i],1.0/double(adj_list[rows[i]].neighbours.size())));
+	}
+
+	for(int i=0;i<NUMROWS;i++){
+		cout<<i<<": ";
+		//only make changes to the matrix if there is an outer link in delta
+		if(delta_adj_list[i].neighbours.size() != 0){
+			//if dangling (a node that has no outlinks), then the adjacency list needs to be modified. The adjacency list for a dangling node is the list of all nodes. So we need to erase that and replace it with just the new nodes in the delta_adj_list
+			if(adj_list[i].isDangling){
+				adj_list[i].isDangling = false;
+				adj_list[i].neighbours.erase(adj_list[i].neighbours.begin(), adj_list[i].neighbours.end());
+				for(int j=0;j<delta_adj_list[i].neighbours.size();j++){
+					adj_list[i].neighbours.push_back(j);
+					//rows.push_back(i);cols.push_back(adj_list[i].neighbours[j]);
+					cout<<adj_list[i].neighbours[j]<<" ";
+				}
+
+			}
+			for(int j=0;j<adj_list[i].neighbours.size();j++){
+				rows.push_back(i);cols.push_back(adj_list[i].neighbours[j]);
+				cout<<adj_list[i].neighbours[j]<<" ";
+			}
+		} 
+
+			
+		
+
+
+		cout<<endl;
+	}
+*/
+	
 }
