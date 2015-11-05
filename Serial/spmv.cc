@@ -6,6 +6,8 @@
 
 #include <fstream>
 
+#define ENABLE_PRINT 0
+
 #define ALPHA 0.15
 
 using namespace Eigen;
@@ -16,12 +18,12 @@ typedef double matrixValType;
 typedef SparseMatrix<matrixValType> MyMatrix;
 
 void PrintMatrix(MyMatrix& mat){
-	std::cout<<"\nmat.outersize() = "<<mat.outerSize()<<"\n";
+	std::cout<<"\n Number of Rows = "<<mat.outerSize()<<"\n";
 	for (int k=0; k<mat.outerSize(); ++k){
-		std::cout<<"row "<<k<<" : ";
+		std::cout<<"Column "<<k<<" : ";
 		for (MyMatrix::InnerIterator it(mat,k); it; ++it)
 		{
-			std::cout<<it.value()<<" "<<it.row()<< " "<<it.col()<<" "<<it.index()<<"\n";
+			std::cout<<it.value()<<" row#: "<<it.row()<< " col#: "<<it.col()<<" index#: "<<it.index()<<"\n";
 		}
 		std::cout<<"\n";
 	}
@@ -36,7 +38,6 @@ matrixValType getSumOfVectorElems(VectorXd& x){
 }
 
 bool IsThresholdCrossed(VectorXd& x_old, VectorXd& x_new, double threshold){
-	//cout<<"x_old.rows()"<<x_old.rows()<<endl;
 	for(int i=0;i<x_old.rows();i++){
 		//cout<<"abs " << abs(x_old(i)-x_new(i))<<" ";
 		if(abs(x_old(i)-x_new(i)) > threshold){
@@ -44,7 +45,7 @@ bool IsThresholdCrossed(VectorXd& x_old, VectorXd& x_new, double threshold){
 			return false;
 		}
 	}
-	cout<<"\nTHRESHOLD CROSSED! "<<threshold<<"\n";
+	//cout<<"\nTHRESHOLD CROSSED! "<<threshold<<"\n";
 	return true;
 
 }
@@ -55,18 +56,11 @@ VectorXd PageRank(MyMatrix& A_mat, VectorXd& x_const, VectorXd& x_0, double alph
 	VectorXd x(x_0.rows());
 	x = x_0;
 	VectorXd x_old(x_0.rows());
-	//x_old = x_0;
-	//double diff = threshold + 1;
 
-	//matrixValType sum_old = getSumOfVectorElems(x_0);
 	int i;
 	for( i=0;i<num_iters && !IsThresholdCrossed(x_old,x, threshold);i++ ){
-		//do mat-vec
 		x_old = x;
-
-		//x = (1-alpha)*(A_mat*x);
-		//cout<<"x ===== "<<x<<endl;
-
+		//SpMV op
 		x = (alpha*x_const) + (1-alpha)*(A_mat*x);
 		//cout<<"PR_X_inter after iteration "<<i<<":\n"<<x<<endl;
 	}
@@ -78,41 +72,34 @@ VectorXd PageRank(MyMatrix& A_mat, VectorXd& x_const, VectorXd& x_0, double alph
 
 VectorXd IncrementalPageRank(MyMatrix& A_plus_delta_A, MyMatrix& delta_A_mat, VectorXd& x_0, double alpha, double threshold, int num_iters){
 
+	VectorXd result(x_0.rows());
+
 	VectorXd lambda_(x_0.rows());
+	//SpMSpV op
 	lambda_ = (1-alpha)*(delta_A_mat*x_0);
-	cout<<"lambda_ :\n"<<lambda_<<endl;
-	VectorXd x(x_0.rows());
-	x=x_0;
 
 	VectorXd x_sparse(x_0.rows());
-	//x_sparse = (1-alpha)*(A_plus_delta_A*lambda_);
 	for(int i=0;i<x_sparse.rows();i++){
 		x_sparse(i) = 0;
 	}
-	//cout<<"x sparse init ===== "<<x_sparse<<endl;
+
 	VectorXd x_sparse_old(x_0.rows());
 	int i;
 
-
-	x = x_0 + lambda_;
-
-	//cout<<"x_sp 1 ===== "<<x<<endl;
-
 	for(i=0;i<num_iters;i++){
+		//SpMSpV op
 		x_sparse = (1-alpha)*(A_plus_delta_A*(lambda_ + x_sparse));
 		
 		if(IsThresholdCrossed(x_sparse_old, x_sparse, threshold))
 			break;
+
 		x_sparse_old = x_sparse;
 
-		//debug
-		x = x_0 + lambda_ + x_sparse;
-		//cout<<"PR_X_inter_incre after iteration "<<i<<":\n"<<x<<endl;
 	}
 	cout<<"\ntotal num iters "<<i<<endl; 
-	x = x_0 + lambda_ + x_sparse;
-
-	return x;
+	
+	result = x_0 + lambda_ + x_sparse;
+	return result;
 
 }
 
@@ -139,8 +126,6 @@ vector<Node> CreateAdjacencyListFromEdgeList(string filename){
 		adj_list[a].neighbours.push_back(b);
 	}
 
-
-
 	return adj_list;
 }
 
@@ -156,7 +141,7 @@ MyMatrix CreateMatrixFromFile(int& NUMROWS, int& NUMCOLS, string filename){
 	std::vector<int> cols;
 
 	for(int i=0;i<NUMROWS;i++){
-		cout<<i<<": ";
+		//cout<<i<<": ";
 		//if no outer link, assume it links to all - this is done in original PR as well!
 		if(adj_list[i].neighbours.size() == 0){
 			adj_list[i].isDangling = true;
@@ -166,11 +151,10 @@ MyMatrix CreateMatrixFromFile(int& NUMROWS, int& NUMCOLS, string filename){
 		}
 		for(int j=0;j<adj_list[i].neighbours.size();j++){
 			rows.push_back(i);cols.push_back(adj_list[i].neighbours[j]);
-			cout<<adj_list[i].neighbours[j]<<" ";
+			//cout<<adj_list[i].neighbours[j]<<" ";
 		}
 
-
-		cout<<endl;
+		//cout<<endl;
 	}
 
 	int nnz = rows.size();
@@ -203,7 +187,11 @@ int main()
 	MyMatrix mat = CreateMatrixFromFile(NUMROWS, NUMCOLS, filename);
 	
 	MyMatrix mat_transpose = MyMatrix(mat.transpose());
+
+#if ENABLE_PRINT
+	cout<<"Original matrix transpose: \n";
 	PrintMatrix(mat_transpose);
+#endif
 
 	//d because double - need to change this if changing type
 	VectorXd x(NUMROWS), x_init(NUMROWS);
@@ -214,34 +202,38 @@ int main()
 	}
 
 	x = x_init;
-	std::cout << "num rows and cols\n" << x.rows() << " "<<x.cols()<<std::endl;
-	std::cout << "Here is the vector x_init:\n" << x_init << std::endl;
+
+	std::cout << "Initial PageRank vector:\n" << x_init << std::endl;
 	
 	VectorXd result = PageRank(mat_transpose, x_init,x, ALPHA, THRESHOLD, NUM_ITERS);
 
-	std::cout << "Here is the vector result:\n" << result << std::endl;
+	std::cout << "Here is the PageRank vector after initial PageRank:\n" << result << std::endl;
 
 	string filename_delta = "delta_edgelist.in";
 	MyMatrix mat_new = CreateMatrixFromFile(NUMROWS, NUMCOLS, filename_delta);
-
 	
 	MyMatrix mat_new_transpose = MyMatrix(mat_new.transpose());
-	PrintMatrix(mat_new_transpose);
 
+#if ENABLE_PRINT
+	cout<<"New matrix transpose: \n";
+	PrintMatrix(mat_new_transpose);
+#endif
 
 	MyMatrix delta_mat = mat_new_transpose - mat_transpose;
+
+#if ENABLE_PRINT	
+	cout<<"Delta matrix transpose: \n";
 	PrintMatrix(delta_mat);
+#endif
 
-	//NUM_ITERS = 2;
 	VectorXd result_incremental = IncrementalPageRank(mat_new_transpose, delta_mat, result, ALPHA, THRESHOLD, NUM_ITERS);
-
-	std::cout << "Here is the vector result according to incremental PR:\n" << result_incremental << std::endl;
+	std::cout << "PageRank vector after incremental PR:\n" << result_incremental << std::endl;
 
 	VectorXd result_scratch = PageRank(mat_new_transpose, x_init, result, ALPHA, THRESHOLD, NUM_ITERS);
-
-	std::cout << "Here is the vector result according to PR from scratch:\n" << result_scratch << std::endl;
+	std::cout << "PageRank vector after PR from scratch:\n" << result_scratch << std::endl;
 
 /*
+	//In case the delta is provided as just modified edges and not the entire new graph
 
 	vector<Node> delta_adj_list = CreateAdjacencyListFromEdgeList(filename_delta);
 
@@ -272,10 +264,6 @@ int main()
 				cout<<adj_list[i].neighbours[j]<<" ";
 			}
 		} 
-
-			
-		
-
 
 		cout<<endl;
 	}
