@@ -2,7 +2,8 @@ import networkx as nx
 
 G = nx.DiGraph()
 #filename = "edgelist.in"
-filename = "delta_edgelist.in"
+#filename = "delta_edgelist.in"
+filename = "filter3D.mtx.edgelist"
 f = open(filename)
 
 first_line = f.readline();
@@ -29,7 +30,7 @@ y = nx.pagerank(G,tol=1e-10,max_iter=MAX_ITER)
 print ""
 
 print y
-
+'''
 y = nx.pagerank_scipy(G,tol=1e-10,max_iter=MAX_ITER)
 
 print ""
@@ -37,4 +38,4 @@ print y
 
 y = nx.pagerank(G,max_iter=MAX_ITER)
 print ""
-print y
+print y'''

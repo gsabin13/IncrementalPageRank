@@ -8,6 +8,7 @@
 #include <bits/stdc++.h>
 
 #include <fstream>
+#include "COO.h"
 
 #define ENABLE_PRINT 0
 
@@ -61,17 +62,21 @@ bool IsThresholdCrossed(VectorXd& x_old, VectorXd& x_new, double threshold){
 
 }
 
-vector<Node> CreateAdjacencyListFromEdgeList(string filename){
-	ifstream fin(filename);
+vector<Node> CreateAdjacencyListFromEdgeList(COO& cooAt){
+	
+	//ifstream fin(filename);
 
 	int num_nodes, num_edges;
-	fin>>num_nodes>>num_edges;
+	//fin>>num_nodes>>num_edges;
+	num_nodes = cooAt.rows;
+	num_edges = cooAt.nnz;
 
 	vector<Node> adj_list(num_nodes);
 
+
 	for(int i =0;i<num_edges;i++){
 		int a,b;
-		fin>>a>>b;
+		a = cooAt.cooRowIndex[i]; b = cooAt.cooColIndex[i];
 		adj_list[a].neighbours.push_back(b);
 	}
 
@@ -79,9 +84,7 @@ vector<Node> CreateAdjacencyListFromEdgeList(string filename){
 }
 
 
-MyMatrix CreateMatrixFromFile(int& NUMROWS, int& NUMCOLS, string filename){
-
-	vector<Node> adj_list = CreateAdjacencyListFromEdgeList(filename);
+MyMatrix CreateMatrixFromAdjList(int& NUMROWS, int& NUMCOLS, vector<Node>& adj_list){
 	
 	NUMROWS = adj_list.size();
 	NUMCOLS = NUMROWS;
@@ -107,6 +110,32 @@ MyMatrix CreateMatrixFromFile(int& NUMROWS, int& NUMCOLS, string filename){
 	mat.setFromTriplets(tripletList.begin(), tripletList.end());
 	
 	return mat;
+}
+
+bool RandRowColExistsInGraph(int rand_row, int rand_col, vector<Node>& adj_list){
+
+	return (std::find(adj_list[rand_row].neighbours.begin(), adj_list[rand_row].neighbours.end(), rand_col) 
+				!= adj_list[rand_row].neighbours.end());
+
+}
+
+
+//TODO: CHANGE THIS TO ACCEPT MULTIPLE TYPES OF MODIFICATION (like the percentage of rows that are being changed)
+int ModifyGraph(vector<Node>& adj_list){
+	int num_edges_added = 0;
+	//right now, adding an edge to a random 10% of nodes
+	int num_rows = adj_list.size();
+	for(int i=0;i<num_rows/10;i++){
+		int rand_row = rand()%num_rows;
+		int rand_col = rand()%num_rows;
+		while(RandRowColExistsInGraph(rand_row, rand_col, adj_list)){
+			rand_row = rand()%num_rows;
+			rand_col = rand()%num_rows;
+		}
+		adj_list[rand_row].neighbours.push_back(rand_col);
+		num_edges_added++;
+	}
+	return num_edges_added;
 }
 
 #endif

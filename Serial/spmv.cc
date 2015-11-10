@@ -5,6 +5,8 @@
 #include <bits/stdc++.h>
 
 #include "spmv.h"
+#include "COO.h"
+#include "tools/ntimer.h"
 
 #define ENABLE_PRINT 0
 
@@ -63,18 +65,75 @@ VectorXd IncrementalPageRank(MyMatrix& A_plus_delta_A, MyMatrix& delta_A_mat, Ve
 	return result;
 
 }
+	
+void PrintEdgeListFromAdjList(vector<Node>& adj_list, int num_nodes, int num_edges, char filename[]){
 
+	ofstream fout(filename);
 
+	fout<<num_nodes<<" "<<num_edges<<endl;
+	for(int i=0;i<num_nodes;i++){
+		for(int j=0;j<adj_list[i].neighbours.size();j++){
+			fout<<i<<" "<<adj_list[i].neighbours[j]<<endl;
+		}
+	}
+}
 
-int main()
+void PrintOutput(char filename[], VectorXd& result){
+	ofstream fout(filename);
+	fout << result << endl;
+}
+
+int main(int argc, char *argv[])
 {
+	if(argc != 3){
+		cout<<"Incorrect format. Format should be: ./a.out <filename> <output_directory>"<<endl;
+		return 0;
+	}
+	
+	char* filepath = argv[1];
+	char * output_directory_path = argv[2];
+	string filepath_st(filepath);
+	string file_name_st = string(output_directory_path) + "/" + filepath_st.substr(filepath_st.find_last_of("/")+1, filepath_st.length());
+	
+	char timing_file[100];
+	strcpy(timing_file, file_name_st.c_str());
+	strcat(timing_file, ".timing");
+
+	string orig_file_name_st = file_name_st +".orig";
+	char orig_intermediate_edgelist_file[100];
+	strcpy(orig_intermediate_edgelist_file, orig_file_name_st.c_str());
+	strcat(orig_intermediate_edgelist_file,".intermediate.edgelist");
+	char orig_output_file[100];
+	strcpy(orig_output_file, orig_file_name_st.c_str());
+	strcat(orig_output_file,".out");
+
+	string incr_file_name_st = file_name_st + ".incr";
+	char incr_intermediate_edgelist_file[100];
+	strcpy(incr_intermediate_edgelist_file, incr_file_name_st.c_str());
+	strcat(incr_intermediate_edgelist_file,".intermediate.edgelist");
+	char incr_output_file[100];
+	strcpy(incr_output_file, incr_file_name_st.c_str());
+	strcat(incr_output_file,".out");
+
+	//cout<<orig_intermediate_edgelist_file<<endl;
+
+	COO cooAt;
+	
+  	cooAt.readSNAPFile(filepath, false);
+	//printf("cooAt before removing Duplicates rows=%d cols=%d nnz=%d\n", cooAt.rows, cooAt.cols, cooAt.nnz);
+	cooAt.orderedAndDuplicatesRemoving();
+	//printf("cooAt after removing Duplicates rows=%d cols=%d nnz=%d\n", cooAt.rows, cooAt.cols, cooAt.nnz);
+
+	vector<Node> adj_list = CreateAdjacencyListFromEdgeList(cooAt);
+
+
+	PrintEdgeListFromAdjList(adj_list,adj_list.size(), cooAt.nnz, orig_intermediate_edgelist_file);
 
 	int NUM_ITERS = 300;
 	int NUMROWS, NUMCOLS;
 	const double THRESHOLD =0.0000000001;
-
-	string filename = "edgelist.in";
-	MyMatrix mat = CreateMatrixFromFile(NUMROWS, NUMCOLS, filename);
+	
+	MyMatrix mat = CreateMatrixFromAdjList(NUMROWS, NUMCOLS, adj_list);
 	
 	MyMatrix mat_transpose = MyMatrix(mat.transpose());
 
@@ -91,15 +150,29 @@ int main()
 		x_init(i) = 1.0/double(NUMROWS);
 	}
 
+#if ENABLE_PRINT
 	std::cout << "Initial PageRank vector:\n" << x_init << std::endl;
-
+#endif
 	x = x_init;	
+
+	ofstream fout(timing_file);
+
+    double orig_pre = time_in_mill_now();
 	VectorXd result = PageRank(mat_transpose, x_init,x, ALPHA, THRESHOLD, NUM_ITERS);
+	double orig_post = time_in_mill_now();
+    fout << file_name_st<<", "
+              << orig_post-orig_pre
+              << "msec, ";
 
-	std::cout << "Here is the PageRank vector after initial PageRank:\n" << result << std::endl;
+	PrintOutput(orig_output_file, result);
 
-	string filename_delta = "delta_edgelist.in";
-	MyMatrix mat_new = CreateMatrixFromFile(NUMROWS, NUMCOLS, filename_delta);
+
+	//Function that modifies graph so that we can try out incremental PR on it
+	int num_edges_added = ModifyGraph(adj_list);
+	PrintEdgeListFromAdjList(adj_list, adj_list.size(), cooAt.nnz + num_edges_added, incr_intermediate_edgelist_file);
+
+//	char* filename_delta = "delta_edgelist.in";
+	MyMatrix mat_new = CreateMatrixFromAdjList(NUMROWS, NUMCOLS, adj_list);
 	MyMatrix mat_new_transpose = MyMatrix(mat_new.transpose());
 
 #if ENABLE_PRINT
@@ -113,12 +186,27 @@ int main()
 	cout<<"Delta matrix transpose: \n";
 	PrintMatrix(delta_mat);
 #endif
-
+	
+	double incr_pre = time_in_mill_now();
 	VectorXd result_incremental = IncrementalPageRank(mat_new_transpose, delta_mat, result, ALPHA, THRESHOLD, NUM_ITERS);
-	std::cout << "PageRank vector after incremental PR:\n" << result_incremental << std::endl;
+	double incr_post = time_in_mill_now();
+	fout << incr_post-incr_pre
+              << "msec, ";
 
+	PrintOutput(incr_output_file, result_incremental);
+
+	double incr_scratch_pre = time_in_mill_now();
 	VectorXd result_scratch = PageRank(mat_new_transpose, x_init, result, ALPHA, THRESHOLD, NUM_ITERS);
-	std::cout << "PageRank vector after PR from scratch:\n" << result_scratch << std::endl;
+	double incr_scratch_post = time_in_mill_now();
+	fout << incr_scratch_post-incr_scratch_pre
+              << "msec\n";
+
+	strcat(incr_output_file,".scratch");
+	PrintOutput(incr_output_file, result_scratch);	
+
+
+	//TODO: write an output validator between scratch and incremental
+
 
 /*
 	//In case the delta is provided as just modified edges and not the entire new graph
