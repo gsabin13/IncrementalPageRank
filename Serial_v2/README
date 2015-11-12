@@ -1,0 +1,8 @@
+Novel Ideas:
+
+1. Representation of incremental page rank with an spmspv operation instead of an spmv operation
+2. Doing inplace incremental SpmSpV 
+3. Doing inplace addition of sparse vectors as well
+
+//TODO:
+4. In a page rank matrix, since all the vals in a particular row are the same, we could represent it in an even more sparse format. where vals.size() == # of rows instead of # of zeros!!! Will this give us perf benefits though? 

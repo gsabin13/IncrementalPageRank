@@ -25,6 +25,8 @@ SparseMatrixCSC SparseMatrixCSC::subtract(SparseMatrixCSC& B){
 			//cout<<"curr_rowidx_A "<< curr_rowidx_A<< " "<<"curr_rowidx_B "<< curr_rowidx_B<<endl;
 			//cout<<"curr_row_A "<< curr_row_A<< " "<<"curr_row_B "<< curr_row_B<< " "<<"curr_val_A "<< curr_val_A<< " "<<"curr_val_B "<< curr_val_B<< endl;
 			if(curr_row_A == curr_row_B){
+				//TODO: don't push back in this case! Pushing back isn't wrong but will not result in an ultra sparse matrix when doing a+delta_a - a. wont make a huge diff performance wise as delta_a is used only once
+				//if doing so, remove the below 2 lines and move the non_zero_count_c++ to the else if and else conditions below
 				C_rows.push_back(curr_row_A);
 				C_matrix_vals.push_back(curr_val_A - curr_val_B);
 				curr_rowidx_A++;

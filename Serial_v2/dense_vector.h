@@ -67,8 +67,7 @@ public:
 		cout<<endl;
 	}
 
-
-
+	
 };
 
 #endif //DENSE_VECTOR_H
