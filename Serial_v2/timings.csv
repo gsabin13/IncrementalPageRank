@@ -1,4 +1,4 @@
-Graph Name,PR on Original Graph,Incremental PR – SpMSpV,Incremental PR – Normal
+Graph Name,PR on Original Graph,Incremental PR – SpMSpV,Incremental PR – SpMV
 DIP_unweighted_graph.mtx, 3761.62msec, 4946.13msec, 2823.24msec
 cage12.mtx, 231.544msec, 465.906msec, 215.744msec
 filter3D.mtx, 282.638msec, 611.356msec, 297.812msec

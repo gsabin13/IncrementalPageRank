@@ -28,20 +28,12 @@ DenseVector PageRank(SparseMatrixCSC& A_mat, DenseVector& x_const, DenseVector& 
 	alpha_times_xconst.InPlaceScalarMultiply(alpha);	
 	//x.Print();
 	for( i=0;i<num_iters;i++ ){
-		//cout<<"\niteration "<<i<<" : ";
 		//x_old = x
 		x_old.VectorCopy(x);
-		//cout<<"x: ";
-		//x.Print();
-		//SpMV op
-		DenseVector A_dot_x_times_1_minus_alpha = (A_mat.multiplyWithDenseVector(x));
-		//cout<<"A_dot_x: ";
-		//A_dot_x_times_1_minus_alpha.Print();
 		
-		A_dot_x_times_1_minus_alpha.InPlaceScalarMultiply(1-alpha);
-		//cout<<"A_dot_x_times_1_minus_alpha: ";	
-		//A_dot_x_times_1_minus_alpha.Print();
 		//x = alpha*x_const + (1-alpha)*(A*x)
+		DenseVector A_dot_x_times_1_minus_alpha = (A_mat.multiplyWithDenseVector(x));
+		A_dot_x_times_1_minus_alpha.InPlaceScalarMultiply(1-alpha);
 		x.DenseVectorSum(alpha_times_xconst, A_dot_x_times_1_minus_alpha);
 		
 		
@@ -57,23 +49,20 @@ DenseVector PageRank(SparseMatrixCSC& A_mat, DenseVector& x_const, DenseVector& 
 }
 
 
-DenseVector IncrementalPageRank(SparseMatrixCSC& A_plus_delta_A, SparseMatrixCSC& delta_A_mat, DenseVector& x_0, double alpha, double threshold, int num_iters){
+DenseVector IncrementalPageRankSpMSpV(SparseMatrixCSC& A_plus_delta_A, SparseMatrixCSC& delta_A_mat, DenseVector& x_0, double alpha, double threshold, int num_iters){
+
+	double copy_time =0.0, inplace_add_time=0.0, mul_time=0.0, inplace_scalar_mul_time=0.0, thresholdcheck_time=0.0;
 
 	SparseVector result(x_0.size());
 
 	//SpMSpV op
 	//lambda_ = (1-alpha)*(delta_A_mat*x_0);
-
-	
-	double copy_time =0.0, inplace_add_time=0.0, mul_time=0.0, inplace_scalar_mul_time=0.0, thresholdcheck_time=0.0;
-
 	SparseVector lambda_ = x_0;
 	delta_A_mat.inPlaceMultiplyWithSparseVector(lambda_);
 	lambda_.inPlaceScalarMultiply(1-alpha);
 	
 	//initial x_sparse contains all 0s
 	SparseVector x_sparse(x_0.size());
-
 	SparseVector x_sparse_old(x_0.size());
 	int i;
 
@@ -138,6 +127,9 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 	
+/********************************************************
+Creation of files for multiple outputs that are printed during the program 
+********************************************************/
 	char* filepath = argv[1];
 	char * output_directory_path = argv[2];
 	string filepath_st(filepath);
@@ -146,6 +138,7 @@ int main(int argc, char *argv[])
 	char timing_file[100];
 	strcpy(timing_file, file_name_st.c_str());
 	strcat(timing_file, ".timing");
+
 
 	string orig_file_name_st = file_name_st +".orig";
 	char orig_intermediate_edgelist_file[100];
@@ -163,8 +156,14 @@ int main(int argc, char *argv[])
 	strcpy(incr_output_file, incr_file_name_st.c_str());
 	strcat(incr_output_file,".out");
 
-	//cout<<orig_intermediate_edgelist_file<<endl;
+	ofstream fout(timing_file);
+	const int NUM_ITERS = 300;
+	int NUMROWS, NUMCOLS;
+	const double THRESHOLD = 0.0000000001;
 
+/********************************************************
+Reading from input matrix and creating an adjacency list 
+********************************************************/
 	COO cooAt;
 	
   	cooAt.readSNAPFile(filepath, false);
@@ -174,30 +173,28 @@ int main(int argc, char *argv[])
 
 	vector<Node> adj_list = CreateAdjacencyListFromEdgeList(cooAt);
 
-
 	PrintEdgeListFromAdjListToFile(adj_list,adj_list.size(), cooAt.nnz, orig_intermediate_edgelist_file);
 
-	int NUM_ITERS = 300;
-	int NUMROWS, NUMCOLS;
-	const double THRESHOLD =0.0000000001;
-	
+/********************************************************
+Creation of SparseMatrix and initial vector objects 
+********************************************************/
 	SparseMatrixCSC A_mat = CreateMatrixFromAdjList(NUMROWS, NUMCOLS, adj_list);
-	
-#if ENABLE_PRINT
-	cout<<"Original matrix transpose: \n";
-	A_mat.PrintMatrix();
-#endif
-
 	vector<valtype> x_init_vec(NUMROWS,1.0/double(NUMROWS));
 	DenseVector x_init(x_init_vec);
 	DenseVector x_0(x_init_vec);
 
 #if ENABLE_PRINT
+	cout<<"Original matrix transpose: \n";
+	A_mat.PrintMatrix();
+
 	std::cout << "Initial PageRank vector: ";
 	x_init.Print();
 #endif
+	
 
-	ofstream fout(timing_file);
+/********************************************************
+PageRank() call - does PageRank on the original graph 
+********************************************************/
 
     double orig_pre = time_in_mill_now();
 	DenseVector result = PageRank(A_mat, x_init, x_0, ALPHA, THRESHOLD, NUM_ITERS);
@@ -208,35 +205,40 @@ int main(int argc, char *argv[])
 
 	PrintOutputToFile(orig_output_file, result);
 
+/********************************************************
+Modification of graph and creation of new SparseMatrix objects
+********************************************************/
 
 	//Function that modifies graph so that we can try out incremental PR on it
 	int num_edges_added = ModifyGraph(adj_list);
 	PrintEdgeListFromAdjListToFile(adj_list, adj_list.size(), cooAt.nnz + num_edges_added, incr_intermediate_edgelist_file);
 
-//	char* filename_delta = "delta_edgelist.in";
 	SparseMatrixCSC A_plus_delta_A = CreateMatrixFromAdjList(NUMROWS, NUMCOLS, adj_list);
+	SparseMatrixCSC deltaA = A_plus_delta_A.subtract(A_mat);
+
 
 #if ENABLE_PRINT
 	cout<<"New matrix transpose: \n";
 	A_plus_delta_A.PrintMatrix();
-#endif
-
-	SparseMatrixCSC deltaA = A_plus_delta_A.subtract(A_mat);
 	
-
-#if ENABLE_PRINT	
 	cout<<"Delta matrix transpose: \n";
 	deltaA.PrintMatrix();
 #endif
 	
+/********************************************************
+IncrementalPageRankSpMSpV() call - does SpmSpV based PageRank on the modified graph
+********************************************************/
 	double incr_pre = time_in_mill_now();
-	DenseVector result_incremental = IncrementalPageRank(A_plus_delta_A, deltaA, result, ALPHA, THRESHOLD, NUM_ITERS);
+	DenseVector result_incremental = IncrementalPageRankSpMSpV(A_plus_delta_A, deltaA, result, ALPHA, THRESHOLD, NUM_ITERS);
 	double incr_post = time_in_mill_now();
 	fout << incr_post-incr_pre
               << "msec, ";
 
 	PrintOutputToFile(incr_output_file, result_incremental);
 
+/********************************************************
+PageRank() call - does PageRank on the modified graph from scratch
+********************************************************/
 	double incr_scratch_pre = time_in_mill_now();
 	DenseVector result_scratch = PageRank(A_plus_delta_A, x_init, result, ALPHA, THRESHOLD, NUM_ITERS);
 	double incr_scratch_post = time_in_mill_now();
