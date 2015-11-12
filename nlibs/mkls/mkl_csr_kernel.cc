@@ -13,8 +13,9 @@ void mkl_CSR_IC_nnzC(int IA[], int JA[],
   mkl_dcsrmultcsr(&trans, &job, &sort, &m, &n, &k, NULL, JA, IA,
       NULL, JB, IB, NULL, NULL, IC, NULL, &ierr);
 #else
-  mkl_scsrmultcsr(&trans, &job, &sort, &m, &n, &k, NULL, JA, IA,
+/*  mkl_scsrmultcsr(&trans, &job, &sort, &m, &n, &k, NULL, JA, IA,
       NULL, JB, IB, NULL, NULL, IC, NULL, &ierr);
+*/
 #endif
 }
 
@@ -40,11 +41,12 @@ void mkl_CSR_SpMM(int IA[], int JA[], QValue A[],
       C, JC, IC,
       &nnzC, &ierr);
 #else
-  mkl_scsrmultcsr(&trans, &job, &sort, &m, &n, &k,
+/*  mkl_scsrmultcsr(&trans, &job, &sort, &m, &n, &k,
       A, JA, IA,
       B, JB, IB,
       C, JC, IC,
       &nnzC, &ierr);
+*/
 #endif
 }
 
