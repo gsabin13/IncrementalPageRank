@@ -4,7 +4,6 @@
 #include "common.h"
 
 class DenseVector{
-	//vector containing all indices with non-zero vals (this vector is unordered, i.e. indices are not stored in increasing order)
 	vector<valtype> vals;
 
 public:
@@ -20,6 +19,32 @@ public:
 		return vals.size();
 	}
 
+	void InPlaceScalarMultiply(valtype scalar){
+		for(uint i=0;i<vals.size();i++){
+			vals[i]*=scalar;
+		}
+
+	}
+
+	void VectorCopy(DenseVector& src){
+		if(src.size() != this->size()){
+			cout<<"ERROR in VectorCopy!\n";
+		}
+		for(int i=0;i<src.size();i++){
+			vals[i] = src[i];
+		}
+
+	}
+
+	void DenseVectorSum(DenseVector left, DenseVector right){
+		if(left.size() != this->size() || right.size() != this->size()){
+			cout<<"ERROR in VectorCopy!\n";
+		}
+		for(int i=0;i<this->size();i++){
+			vals[i] = left[i] + right[i];
+		}
+	}
+
 	//TODO: double check overloading format - const and all?
 	valtype operator [](uint i) const    {
 		if (i<0 || i>= vals.size()){
@@ -30,7 +55,18 @@ public:
     valtype& operator [](uint i) {
 		if (i<0 || i>= vals.size()){
 			cout<<"ERROR in ACCESSING DenseVector element!\n";
-		}return vals[i];}
+		}
+		return vals[i];
+	}
+
+	void Print(){
+		cout<<"Dense vector: ";
+		for(int i=0;i<vals.size();i++){
+			cout<<vals[i]<<" ";
+		}
+		cout<<endl;
+	}
+
 
 
 };

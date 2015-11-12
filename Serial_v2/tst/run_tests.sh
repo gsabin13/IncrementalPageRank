@@ -1,1 +1,1 @@
-cd ../ && make clean && make && cd tst/ && g++ tests_main.cc ../*.o  && ./a.out
+cd ../ && make clean && make && cd tst/ && icpc tests_main.cc ../*.o  && ./a.out

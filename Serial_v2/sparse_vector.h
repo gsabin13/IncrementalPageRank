@@ -59,14 +59,22 @@ public:
 
 	bool isIndexNonZero(int i);
 
+	DenseVector getDenseVectorForm();
+
+	//copies contents of src to this sparsevector
+	void SparseVectorCopyFrom(SparseVector src);
+
+
 	//inserts index if not already non-zero. Does *not* insert value corresponding to index
 	void insertIndexCorrespondingToNonZeroVal(int i);
 
 	//assumes vals_dense, index_dense, index_sparse have been updated, and now updates vals_sparse based on those 3 arrays
 	void updateValsSparseBasedOnValsDenseAndIndexesSparse();
 
+	void inPlaceScalarMultiply(valtype scalar);
+
 	//method that adds rhs_vect to the existing object
-	void incrementalAdd(SparseVector rhs_vect);
+	void inPlaceAdd(SparseVector rhs_vect);
 
 	//sets all non-zero values to 0 in the vals_dense array.
 	//TODO: check perf of erase and resize vs fill all vs filling out each non-zero individually? currently doing the latter
